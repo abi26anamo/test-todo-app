@@ -1,55 +1,64 @@
-import { useState, useEffect, FormEvent } from "react"
+import { useState, useEffect } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { todoFormSchema, TodoFormInput } from "./schemas/todo"
+
 import { Button } from "ui/button"
 import { Input } from "ui/input"
 import { useTodoStore, Todo } from "./store/userTodoStore"
 
 export default function App() {
-  const {
-    todos,
-    loading,
-    fetchTodos,
-    addTodo,
-    toggleTodo,
-    deleteTodo,
-    updateTodo,
-  } = useTodoStore()
+  const { todos, loading, fetchTodos, addTodo, toggleTodo,
+          deleteTodo, updateTodo } = useTodoStore()
 
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<TodoFormInput>({ resolver: zodResolver(todoFormSchema) })
+
   useEffect(() => { fetchTodos() }, [fetchTodos])
 
-  const handleAdd = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const input = e.currentTarget.elements.namedItem("title") as HTMLInputElement
-    const title = input.value.trim()
-    if (!title) return
-    await addTodo(title)
-    input.value = ""
+  const onAdd = async (data: TodoFormInput) => {
+    await addTodo(data.title)
+    reset()
   }
 
-  const startEdit = (t: Todo) => { setEditingId(t.id); setEditingTitle(t.title) }
-  const cancelEdit = () => { setEditingId(null); setEditingTitle("") }
-
-  const submitEdit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!editingId || !editingTitle.trim()) return
-    await updateTodo(editingId, editingTitle.trim())
-    cancelEdit()
+  const startEdit  = (t: Todo) => { setEditingId(t.id); setEditingTitle(t.title) }
+  const cancelEdit = ()        => { setEditingId(null); setEditingTitle("")  }
+  const saveEdit   = async () => {
+    if (editingId && editingTitle.trim()) {
+      await updateTodo(editingId, editingTitle.trim())
+      cancelEdit()
+    }
   }
 
   return (
     <div className="flex flex-col min-h-screen min-w-screen bg-gray-50">
-      <form onSubmit={handleAdd} className="w-full max-w-3xl flex gap-4 mb-8">
+      {/* ───── Add form ───── */}
+      <form
+        onSubmit={handleSubmit(onAdd)}
+        className="w-full max-w-3xl flex gap-4 mb-8 mx-auto"
+      >
         <Input
-          name="title"
+          {...register("title")}
           placeholder="Add a new task"
           className="flex-1 bg-gray-100 border-gray-300"
         />
         <Button type="submit" className="px-6">Add</Button>
       </form>
+      {errors.title && (
+        <p className="text-center text-red-500 mb-4">
+          {errors.title.message}
+        </p>
+      )}
 
-      <main className="w-full max-w-3xl space-y-4">
+      {/* ───── List ───── */}
+      <main className="w-full max-w-3xl space-y-4 mx-auto">
         {loading && <p className="text-center text-gray-500">Loading…</p>}
 
         {todos.map(todo => (
@@ -58,49 +67,47 @@ export default function App() {
             className="w-full bg-white rounded-lg shadow flex items-center gap-3 px-4 py-3"
           >
             {editingId === todo.id ? (
-              <form onSubmit={submitEdit} className="w-full flex items-center gap-3">
+              <>
                 <Input
+                  autoFocus
                   value={editingTitle}
                   onChange={e => setEditingTitle(e.target.value)}
-                  className="flex-1 text-gray-900"
+                  className="flex-1 bg-gray-100"
                 />
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="!bg-green-600 hover:!bg-green-700 !text-white"
-                  type="submit"
+                <button
+                  onClick={saveEdit}
+                  className="px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700 text-sm"
                 >
                   Save
-                </Button>
-
-                <Button size="sm" variant="outline" onClick={cancelEdit}>Cancel</Button>
-              </form>
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  className="px-3 py-1 rounded border text-sm"
+                >
+                  Cancel
+                </button>
+              </>
             ) : (
               <>
                 <span className="flex-1 text-lg text-gray-800">{todo.title}</span>
 
-                <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => toggleTodo(todo.id, !todo.completed)}
-                    className={
-                      todo.completed
-                        ? "!bg-gray-500 hover:!bg-gray-600 !text-white"
-                        : "!bg-green-600 hover:!bg-green-700 !text-white"
-                    }
-                  >
-                    {todo.completed ? "Undo" : "Done"}
-                </Button>
+                <button
+                  onClick={() => toggleTodo(todo.id, !todo.completed)}
+                  className={`px-3 py-1 rounded text-sm text-white ${
+                    todo.completed
+                      ? "bg-gray-500 hover:bg-gray-600"
+                      : "bg-green-600 hover:bg-green-700"
+                  }`}
+                >
+                  {todo.completed ? "Undo" : "Done"}
+                </button>
 
-
-                <Button
-                  size="sm"
-                  variant="default"
+                <button
                   onClick={() => startEdit(todo)}
-                  className="!bg-yellow-500 hover:!bg-yellow-600 !text-white"
+                  className="px-3 py-1 rounded text-sm text-white bg-yellow-500 hover:bg-yellow-600"
                 >
                   Edit
-                </Button>
+                </button>
 
                 <Button
                   size="sm"
